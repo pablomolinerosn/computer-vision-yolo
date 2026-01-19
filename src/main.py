@@ -1,44 +1,59 @@
-import os
 import cv2
+import os
+import logging
 from ultralytics import YOLO
 
-# Obtener la ruta de la carpeta donde se encuentra el modelo
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(BASE_DIR, '..', 'models', 'yolov8n.pt')
+# Configuración de Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# Cargar el modelo desde la ruta local
-model = YOLO(model_path)
+def run_detection():
+    # Obtenemos la ruta raíz del proyecto para localizar el modelo en /models
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(BASE_DIR, '..', 'models', 'yolov8n.pt')
 
-# Inicializar la captura de video (0 cámara integrada de la laptop)
-cap = cv2.VideoCapture(0)
+    # Carga del modelo con manejo de errores
+    try:
+        logger.info(f"Cargando modelo desde: {model_path}")
+        model = YOLO(model_path)
+    except Exception as e:
+        logger.error(f"No se pudo cargar el modelo. Verifica que el archivo existe en /models. Error: {e}")
+        return
 
-if not cap.isOpened():
-    print("Error: No se pudo acceder a la cámara.")
-    exit()
+    # Inicialización de la cámara
+    cap = cv2.VideoCapture(0) # 0 es la cámara integrada
+    
+    if not cap.isOpened():
+        logger.error("Error: No se pudo acceder a la cámara de la laptop.")
+        return
 
-print("Presiona 'q' para salir.")
+    logger.info("Iniciando detección en tiempo real. Presiona 'q' para salir.")
 
-while True:
-    # Capturar fotograma por fotograma
-    ret, frame = cap.read()
-    if not ret:
-        break
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            logger.warning("No se pudo recibir el frame de la cámara. Finalizando...")
+            break
 
-    # Realizar la detección en el fotograma actual
-    # stream=True es más eficiente para video en tiempo real
-    results = model(frame, stream=True)
+        # Inferencia
+        # stream=True utiliza un generador para ahorrar memoria RAM
+        results = model(frame, stream=True, verbose=False)
 
-    # Dibujar los resultados en el fotograma
-    for r in results:
-        annotated_frame = r.plot()
+        # Visualización
+        for r in results:
+            annotated_frame = r.plot()
 
-    # Mostrar el resultado en una ventana
-    cv2.imshow('YOLO Real-Time Detection', annotated_frame)
+        cv2.imshow('YOLO Real-Time Detection', annotated_frame)
 
-    # Romper el bucle si se presiona la tecla 'q'
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        # Salida limpia con la tecla 'q'
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            logger.info("Cerrando aplicación por el usuario.")
+            break
 
-# Liberar recursos
-cap.release()
-cv2.destroyAllWindows()
+    # Liberación de recursos
+    cap.release()
+    cv2.destroyAllWindows()
+    logger.info("Recursos liberados correctamente.")
+
+if __name__ == "__main__":
+    run_detection()
